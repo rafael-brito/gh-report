@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gh-report/internal/githubclient"
+	"github.com/rafael-brito/gh-report/backend/internal/githubclient"
 )
 
 type FileHistoryService interface {

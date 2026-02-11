@@ -2,15 +2,31 @@ package api
 
 import (
 	"encoding/json"
-	"gh-report/internal/reports"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/rafael-brito/gh-report/backend/internal/reports"
 )
 
+type FileHistoryHandlerDeps interface {
+	GetFileHistoryReport(rctx http.Context, params reports.FileHistoryParams) (*reports.FileHistoryReport, error)
+}
+
+type ReleaseDiffHandlerDeps interface {
+	GetReleaseDiffReport(rctx http.Context, params reports.ReleaseDiffParams) (*reports.ReleaseDiffReport, error)
+}
+
 type ReportsHandler struct {
-	FileHistory reports.FileHistoryService
-	ReleaseDiff reports.ReleaseDiffService
+	fileHistoryService reports.FileHistoryService
+	releaseDiffService reports.ReleaseDiffService
+}
+
+func NewReportsHandler(fh reports.FileHistoryService, rd reports.ReleaseDiffService) *ReportsHandler {
+	return &ReportsHandler{
+		fileHistoryService: fh,
+		releaseDiffService: rd,
+	}
 }
 
 func parseRepoParam(repoStr string) (reports.RepositoryRef, error) {
@@ -21,11 +37,11 @@ func parseRepoParam(repoStr string) (reports.RepositoryRef, error) {
 	return reports.RepositoryRef{Owner: parts[0], Name: parts[1]}, nil
 }
 
+const dummyUserID = "dev-local"
+
 func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	// Aqui, suponho que você já tenha middleware que injeta userID
-	userID := ctx.Value(UserIDKey).(string)
+	userID := dummyUserID
 
 	repoStr := r.URL.Query().Get("repo")
 	file := r.URL.Query().Get("file")
@@ -62,9 +78,8 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 		UserID: userID,
 	}
 
-	report, err := h.FileHistory.GetFileHistoryReport(ctx, params)
+	report, err := h.fileHistoryService.GetFileHistoryReport(ctx, params)
 	if err != nil {
-		// mapear erros específicos (rate limit, forbidden, etc.)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -72,18 +87,10 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 	switch format {
 	case "json":
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(report)
-	case "markdown":
-		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-		if err := writeFileHistoryMarkdown(w, report); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	case "csv":
-		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-		if err := writeFileHistoryCSV(w, report); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		_ = json.NewEncoder(w).Encode(report)
 	default:
-		http.Error(w, "unsupported format", http.StatusBadRequest)
+		// temporariamente, só JSON para conseguir testar rápido
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(report)
 	}
 }
