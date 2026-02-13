@@ -10,7 +10,7 @@ type httpClient struct {
 	http    *http.Client
 	token   string
 	baseURL string
-	// aqui entra o cache em memória depois
+	// cache entra depois
 }
 
 func NewHTTPClient(token string) Client {
@@ -23,10 +23,7 @@ func NewHTTPClient(token string) Client {
 	}
 }
 
-// Implementações vazias por enquanto; depois preenchemos
-func (c *httpClient) ListCommitsByFile(ctx context.Context, params ListCommitsByFileParams) ([]Commit, error) {
-	return nil, nil
-}
+// Stubs (alguns ainda vazios, vamos preencher depois)
 
 func (c *httpClient) ListPRsByCommit(ctx context.Context, owner, repo, sha string) ([]PRShort, error) {
 	return nil, nil
