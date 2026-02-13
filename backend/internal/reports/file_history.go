@@ -30,6 +30,7 @@ func (s *fileHistoryService) GetFileHistoryReport(ctx context.Context, params Fi
 	if err != nil {
 		return nil, err
 	}
+	_ = commits // Placeholder para evitar erro de variável não utilizada
 
 	// 2. Para cada commit, buscar PRs associadas (com cache interno no githubclient)
 	// 3. Montar FileHistoryEntry[] de acordo com params.Mode

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,11 +12,11 @@ import (
 )
 
 type FileHistoryHandlerDeps interface {
-	GetFileHistoryReport(rctx http.Context, params reports.FileHistoryParams) (*reports.FileHistoryReport, error)
+	GetFileHistoryReport(ctx context.Context, params reports.FileHistoryParams) (*reports.FileHistoryReport, error)
 }
 
 type ReleaseDiffHandlerDeps interface {
-	GetReleaseDiffReport(rctx http.Context, params reports.ReleaseDiffParams) (*reports.ReleaseDiffReport, error)
+	GetReleaseDiffReport(ctx context.Context, params reports.ReleaseDiffParams) (*reports.ReleaseDiffReport, error)
 }
 
 type ReportsHandler struct {
@@ -32,7 +34,7 @@ func NewReportsHandler(fh reports.FileHistoryService, rd reports.ReleaseDiffServ
 func parseRepoParam(repoStr string) (reports.RepositoryRef, error) {
 	parts := strings.Split(repoStr, "/")
 	if len(parts) != 2 {
-		return reports.RepositoryRef{}, ErrBadRequest // defina um erro apropriado
+		return reports.RepositoryRef{}, fmt.Errorf("invalid repo format, expected owner/repo")
 	}
 	return reports.RepositoryRef{Owner: parts[0], Name: parts[1]}, nil
 }
@@ -93,4 +95,9 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(report)
 	}
+}
+
+func (h *ReportsHandler) HandleReleaseDiff(w http.ResponseWriter, r *http.Request) {
+	// Placeholder: ainda não implementado
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
