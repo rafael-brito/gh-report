@@ -8,6 +8,7 @@ Para o backend:
 
 ```bash
 cd backend
+export GITHUB_TOKEN=<your_token>
 go run ./cmd/server/
 ```
 
