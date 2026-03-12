@@ -49,10 +49,10 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 	file := r.URL.Query().Get("file")
 	limitStr := r.URL.Query().Get("limit")
 	modeStr := r.URL.Query().Get("mode")
-	format := r.URL.Query().Get("format")
+	format := strings.ToLower(r.URL.Query().Get("format"))
 
 	if format == "" {
-		format = "markdown"
+		format = "json"
 	}
 	if modeStr == "" {
 		modeStr = string(reports.FileHistoryModePRs)
@@ -87,12 +87,20 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 	}
 
 	switch format {
-	case "json":
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(report)
+	case "markdown", "md":
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		md := report.ToMarkdown()
+		_, _ = w.Write([]byte(md))
+	case "csv":
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		csvStr, err := report.ToCSV()
+		if err != nil {
+			http.Error(w, "failed to render csv: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(csvStr))
 	default:
-		// temporariamente, só JSON para conseguir testar rápido
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(report)
 	}
 }

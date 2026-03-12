@@ -2,12 +2,17 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/rafael-brito/gh-report/backend/internal/reports"
 )
 
-func NewRouter(fileHistoryHandler FileHistoryHandlerDeps, releaseDiffHandler ReleaseDiffHandlerDeps) http.Handler {
+func NewRouter(
+	fileHistorySvc reports.FileHistoryService,
+	releaseDiffSvc reports.ReleaseDiffService,
+) http.Handler {
 	mux := http.NewServeMux()
 
-	reportsHandler := NewReportsHandler(fileHistoryHandler, releaseDiffHandler)
+	reportsHandler := NewReportsHandler(fileHistorySvc, releaseDiffSvc)
 
 	// Rotas de relatórios
 	mux.HandleFunc("/api/reports/file-history", reportsHandler.HandleFileHistory)
@@ -15,6 +20,5 @@ func NewRouter(fileHistoryHandler FileHistoryHandlerDeps, releaseDiffHandler Rel
 
 	// Aqui depois você adiciona /auth/login, /auth/callback, /auth/me
 
-	// No futuro, você pode envolver mux com middlewares de auth, logging, CORS etc.
 	return mux
 }
