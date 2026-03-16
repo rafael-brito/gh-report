@@ -140,3 +140,83 @@ func nullOr(v, alt string) string {
 func escapePipes(s string) string {
 	return strings.ReplaceAll(s, "|", "\\|")
 }
+
+func (r *ReleaseDiffReport) ToMarkdown() string {
+	var b strings.Builder
+
+	// Título
+	fmt.Fprintf(&b, "# Release diff `%s...%s`\n\n", r.FromTag, r.ToTag)
+	fmt.Fprintf(&b, "- Repositório: `%s/%s`\n", r.Repository.Owner, r.Repository.Name)
+	fmt.Fprintf(&b, "- De (from): `%s`\n", r.FromTag)
+	fmt.Fprintf(&b, "- Para (to): `%s`\n", r.ToTag)
+	fmt.Fprintf(&b, "- Gerado em: %s\n\n", formatTimeVal(r.GeneratedAt))
+
+	// Resumo
+	fmt.Fprintf(&b, "## Resumo\n\n")
+	fmt.Fprintf(&b, "- Total de PRs: **%d**\n", r.Summary.TotalPRs)
+
+	if len(r.Summary.ByType) > 0 {
+		fmt.Fprintf(&b, "- PRs por tipo:\n")
+		// ordenar tipos para saída estável
+		type typeCount struct {
+			typ   ReleasePRType
+			count int
+		}
+		var items []typeCount
+		for typ, count := range r.Summary.ByType {
+			items = append(items, typeCount{typ: typ, count: count})
+		}
+		sort.Slice(items, func(i, j int) bool {
+			return string(items[i].typ) < string(items[j].typ)
+		})
+		for _, it := range items {
+			fmt.Fprintf(&b, "  - `%s`: **%d**\n", it.typ, it.count)
+		}
+	}
+	fmt.Fprintf(&b, "\n")
+
+	// Ordenar PRs por data de merge desc (ou número, se não tiver merged_at)
+	prs := make([]ReleasePR, len(r.PRs))
+	copy(prs, r.PRs)
+	sort.Slice(prs, func(i, j int) bool {
+		ti := time.Time{}
+		if prs[i].MergedAt != nil {
+			ti = *prs[i].MergedAt
+		}
+		tj := time.Time{}
+		if prs[j].MergedAt != nil {
+			tj = *prs[j].MergedAt
+		}
+		// mais recente primeiro
+		return ti.After(tj)
+	})
+
+	fmt.Fprintf(&b, "## PRs incluídas entre `%s` e `%s`\n\n", r.FromTag, r.ToTag)
+
+	for _, pr := range prs {
+		fmt.Fprintf(&b, "### PR #%d - %s\n\n", pr.Number, pr.Title)
+		fmt.Fprintf(&b, "- Link: %s\n", pr.URL)
+
+		if pr.AuthorLogin != "" {
+			fmt.Fprintf(&b, "- Autor: `%s`\n", pr.AuthorLogin)
+		}
+		if pr.MergedAt != nil {
+			fmt.Fprintf(&b, "- Mergeado em: %s\n", formatTime(pr.MergedAt))
+		}
+		if len(pr.Labels) > 0 {
+			fmt.Fprintf(&b, "- Labels: ")
+			labels := make([]string, len(pr.Labels))
+			for i, l := range pr.Labels {
+				labels[i] = fmt.Sprintf("`%s`", l)
+			}
+			fmt.Fprintf(&b, "%s\n", strings.Join(labels, ", "))
+		}
+		if pr.TypeClassification != "" && pr.TypeClassification != ReleasePRTypeUnknown {
+			fmt.Fprintf(&b, "- Tipo: `%s`\n", pr.TypeClassification)
+		}
+
+		fmt.Fprintf(&b, "\n")
+	}
+
+	return b.String()
+}

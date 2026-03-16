@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 func (r *FileHistoryReport) ToCSV() (string, error) {
@@ -92,6 +93,72 @@ func (r *FileHistoryReport) ToCSV() (string, error) {
 			if err := w.Write(row); err != nil {
 				return "", err
 			}
+		}
+	}
+
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
+}
+
+func (r *ReleaseDiffReport) ToCSV() (string, error) {
+	var sb strings.Builder
+	w := csv.NewWriter(&sb)
+
+	// Cabeçalho: uma linha por PR
+	if err := w.Write([]string{
+		"repo_owner",
+		"repo_name",
+		"from_tag",
+		"to_tag",
+		"pr_number",
+		"pr_title",
+		"pr_url",
+		"author_login",
+		"merged_at",
+		"labels",
+		"type_classification",
+	}); err != nil {
+		return "", err
+	}
+
+	// Ordenar PRs para saída estável (por merged_at desc, fallback número)
+	prs := make([]ReleasePR, len(r.PRs))
+	copy(prs, r.PRs)
+	sort.Slice(prs, func(i, j int) bool {
+		ti := time.Time{}
+		if prs[i].MergedAt != nil {
+			ti = *prs[i].MergedAt
+		}
+		tj := time.Time{}
+		if prs[j].MergedAt != nil {
+			tj = *prs[j].MergedAt
+		}
+		if ti.Equal(tj) {
+			return prs[i].Number > prs[j].Number
+		}
+		return ti.After(tj)
+	})
+
+	for _, pr := range prs {
+		labelsJoined := strings.Join(pr.Labels, ",")
+		row := []string{
+			r.Repository.Owner,
+			r.Repository.Name,
+			r.FromTag,
+			r.ToTag,
+			fmt.Sprintf("%d", pr.Number),
+			pr.Title,
+			pr.URL,
+			pr.AuthorLogin,
+			formatTime(pr.MergedAt),
+			labelsJoined,
+			string(pr.TypeClassification),
+		}
+		if err := w.Write(row); err != nil {
+			return "", err
 		}
 	}
 

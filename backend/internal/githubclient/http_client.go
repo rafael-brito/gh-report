@@ -29,12 +29,6 @@ func NewHTTPClient(token string) Client {
 	}
 }
 
-// Stubs (alguns ainda vazios, vamos preencher depois)
-
-func (c *httpClient) CompareCommits(ctx context.Context, params CompareParams) ([]Commit, error) {
-	return nil, nil
-}
-
 func (c *httpClient) GetPRByNumber(ctx context.Context, owner, repo string, number int) (*PRShort, error) {
 	return nil, nil
 }

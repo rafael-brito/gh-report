@@ -106,6 +106,58 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ReportsHandler) HandleReleaseDiff(w http.ResponseWriter, r *http.Request) {
-	// Placeholder: ainda não implementado
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	ctx := r.Context()
+	userID := dummyUserID
+
+	repoStr := r.URL.Query().Get("repo")
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	format := strings.ToLower(r.URL.Query().Get("format"))
+
+	if format == "" {
+		format = "json"
+	}
+
+	repoRef, err := parseRepoParam(repoStr)
+	if err != nil || from == "" || to == "" {
+		http.Error(w, "invalid repo, from or to", http.StatusBadRequest)
+		return
+	}
+
+	params := reports.ReleaseDiffParams{
+		Repo:   repoRef,
+		From:   from,
+		To:     to,
+		UserID: userID,
+	}
+
+	report, err := h.releaseDiffService.GetReleaseDiffReport(ctx, params)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "base or head not found") {
+			http.Error(w, "invalid from/to ref or tag not found", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+
+	switch format {
+	case "markdown", "md":
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		md := report.ToMarkdown()
+		_, _ = w.Write([]byte(md))
+	case "csv":
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		csvStr, err := report.ToCSV()
+		if err != nil {
+			http.Error(w, "failed to render csv: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		_, _ = w.Write([]byte(csvStr))
+	default:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(report)
+	}
 }
