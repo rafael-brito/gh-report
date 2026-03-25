@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { GitHubTokenConfig } from '../components/GitHubTokenConfig';
 import { apiFetch, ApiError } from '../utils/apiClient';
 import { setGitHubPAT } from '../utils/githubToken';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { FormField, TextInput } from '../components/ui/FormField';
+import { theme } from '../theme';
 
 export const ReleaseDiffPage: React.FC = () => {
   const [repo, setRepo] = useState('');
@@ -11,17 +14,29 @@ export const ReleaseDiffPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
-
-  // Estado estratégico: relatório pronto para exportar
   const [isReportReady, setIsReportReady] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!repo || !from || !to) {
+      setValidationError('Preencha repo, from e to antes de gerar o relatório.');
+      setIsReportReady(false);
+      return;
+    }
+    if (!repo.includes('/')) {
+      setValidationError('Repo deve estar no formato "owner/repo", por exemplo: openai/openai-python.');
+      setIsReportReady(false);
+      return;
+    }
+
+    setValidationError(null);
     setError(null);
     setAuthError(false);
     setLoading(true);
     setData(null);
-    setIsReportReady(false); // novo ciclo de geração → ainda não está pronto
+    setIsReportReady(false);
 
     try {
       const params = new URLSearchParams({
@@ -34,7 +49,7 @@ export const ReleaseDiffPage: React.FC = () => {
       const res = await apiFetch(`/api/reports/release-diff?` + params.toString());
       const json = await res.json();
       setData(json);
-      setIsReportReady(true); // sucesso → relatório pronto para exportação
+      setIsReportReady(true);
     } catch (err) {
       if (err instanceof ApiError && err.isAuthError) {
         setAuthError(true);
@@ -48,12 +63,12 @@ export const ReleaseDiffPage: React.FC = () => {
     }
   };
 
-  // Reset estratégico: qualquer mudança de parâmetro invalida o relatório atual
   const handleRepoChange = (value: string) => {
     setRepo(value);
     setIsReportReady(false);
     setError(null);
     setAuthError(false);
+    setValidationError(null);
   };
 
   const handleFromChange = (value: string) => {
@@ -61,6 +76,7 @@ export const ReleaseDiffPage: React.FC = () => {
     setIsReportReady(false);
     setError(null);
     setAuthError(false);
+    setValidationError(null);
   };
 
   const handleToChange = (value: string) => {
@@ -68,9 +84,14 @@ export const ReleaseDiffPage: React.FC = () => {
     setIsReportReady(false);
     setError(null);
     setAuthError(false);
+    setValidationError(null);
   };
 
   const canDownload = !!repo && !!from && !!to && isReportReady;
+
+  const prs = data && (data as any).prs ? ((data as any).prs as any[]) : [];
+  const prsCount = Array.isArray(prs) ? prs.length : 0;
+  const hasNoResults = isReportReady && prsCount === 0;
 
   const openFormat = (format: 'markdown' | 'csv') => {
     if (!canDownload) return;
@@ -91,46 +112,51 @@ export const ReleaseDiffPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <GitHubTokenConfig />
-      <h1>Relatório 2 - PRs entre tags</h1>
+    <div>
+      <h1 style={{ marginBottom: '0.75rem', color: theme.colors.textDark }}>
+        Relatório 2 – PRs entre tags
+      </h1>
 
-      <form onSubmit={handleSubmit} style={{ marginBottom: '1rem' }}>
-        <div>
-          <label>Repo (owner/repo): </label>
-          <input
-            value={repo}
-            onChange={e => handleRepoChange(e.target.value)}
-            placeholder="org/projeto-x"
-            style={{ width: '300px' }}
-          />
-        </div>
-        <div>
-          <label>From (tag/branch/SHA): </label>
-          <input
-            value={from}
-            onChange={e => handleFromChange(e.target.value)}
-            placeholder="v1.2.3"
-            style={{ width: '200px' }}
-          />
-        </div>
-        <div>
-          <label>To (tag/branch/SHA): </label>
-          <input
-            value={to}
-            onChange={e => handleToChange(e.target.value)}
-            placeholder="v1.3.0"
-            style={{ width: '200px' }}
-          />
-        </div>
+      <Card style={{ marginBottom: '1rem', maxWidth: 640 }}>
+        <form onSubmit={handleSubmit}>
+          <FormField label="Repo (owner/repo):">
+            <TextInput
+              value={repo}
+              onChange={e => handleRepoChange(e.target.value)}
+              placeholder="openai/openai-python"
+            />
+          </FormField>
 
-        <button type="submit" style={{ marginTop: '0.5rem' }}>
-          Gerar (JSON)
-        </button>
-      </form>
+          <FormField label="From (tag/branch/SHA):">
+            <TextInput
+              value={from}
+              onChange={e => handleFromChange(e.target.value)}
+              placeholder="v1.2.3"
+            />
+          </FormField>
 
-      <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
-        <button
+          <FormField label="To (tag/branch/SHA):">
+            <TextInput
+              value={to}
+              onChange={e => handleToChange(e.target.value)}
+              placeholder="v1.3.0"
+            />
+          </FormField>
+
+          {validationError && (
+            <p style={{ color: '#a00', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+              {validationError}
+            </p>
+          )}
+
+          <Button type="submit" style={{ marginTop: '0.5rem' }}>
+            Gerar (JSON)
+          </Button>
+        </form>
+      </Card>
+
+      <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <Button
           type="button"
           onClick={() => openFormat('markdown')}
           disabled={!canDownload}
@@ -139,49 +165,67 @@ export const ReleaseDiffPage: React.FC = () => {
           }
         >
           Abrir em Markdown
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => openFormat('csv')}
           disabled={!canDownload}
-          title={
-            !canDownload ? 'Gere o relatório com sucesso para exportar em CSV' : ''
-          }
+          title={!canDownload ? 'Gere o relatório com sucesso para exportar em CSV' : ''}
         >
           Baixar CSV
-        </button>
+        </Button>
+
+        {isReportReady && (
+          <span style={{ fontSize: '0.85rem', color: '#666' }}>
+            {hasNoResults
+              ? 'Relatório pronto (nenhum PR encontrado).'
+              : `Relatório pronto (${prsCount} PRs).`}
+          </span>
+        )}
       </div>
 
       {loading && <p>Carregando...</p>}
+
       {error && (
-        <div
+        <Card
           style={{
             marginTop: '0.5rem',
-            padding: '0.5rem',
-            border: '1px solid #f99',
+            maxWidth: 640,
+            borderColor: '#f99',
             background: '#fee',
           }}
         >
-          <p style={{ color: '#a00', whiteSpace: 'pre-wrap' }}>{error}</p>
+          <p style={{ color: '#a00', whiteSpace: 'pre-wrap', margin: 0 }}>{error}</p>
           {authError && (
-            <button type="button" onClick={handleClearPAT}>
-              Limpar PAT salvo
-            </button>
+            <div style={{ marginTop: '0.5rem' }}>
+              <Button type="button" variant="secondary" onClick={handleClearPAT}>
+                Limpar PAT salvo
+              </Button>
+            </div>
           )}
-        </div>
+        </Card>
       )}
 
       {data && (
-        <pre
+        <Card
           style={{
-            background: '#f5f5f5',
-            padding: '1rem',
-            maxHeight: '400px',
+            marginTop: '0.75rem',
+            maxWidth: 900,
             overflow: 'auto',
           }}
         >
-          {JSON.stringify(data, null, 2)}
-        </pre>
+          <pre
+            style={{
+              margin: 0,
+              background: 'transparent',
+              maxHeight: 400,
+              overflow: 'auto',
+            }}
+          >
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        </Card>
       )}
     </div>
   );
