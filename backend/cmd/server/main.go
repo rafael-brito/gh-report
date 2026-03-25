@@ -6,8 +6,6 @@ import (
 	"os"
 
 	"github.com/rafael-brito/gh-report/backend/internal/api"
-	"github.com/rafael-brito/gh-report/backend/internal/githubclient"
-	"github.com/rafael-brito/gh-report/backend/internal/reports"
 )
 
 func main() {
@@ -17,18 +15,15 @@ func main() {
 		port = "8080"
 	}
 
-	// Aqui futuramente você vai criar um http.Client com transporte customizado
-	ghToken := os.Getenv("GITHUB_TOKEN") // provisório p/ testes locais
-	if ghToken == "" {
-		log.Println("WARNING: GITHUB_TOKEN não definido, chamadas ao GitHub irão falhar")
+	// AVISO se não houver token global (ainda serve como fallback)
+	if os.Getenv("GITHUB_TOKEN") == "" {
+		log.Println("WARNING: GITHUB_TOKEN não definido; se X-GitHub-Token não for enviado, chamadas ao GitHub irão falhar")
 	}
 
-	ghClient := githubclient.NewHTTPClient(ghToken)
+	tokenProvider := api.NewSimpleTokenProvider()
+	clientFactory := api.NewGitHubClientFactory()
 
-	fileHistorySvc := reports.NewFileHistoryService(ghClient)
-	releaseDiffSvc := reports.NewReleaseDiffService(ghClient)
-
-	router := api.NewRouter(fileHistorySvc, releaseDiffSvc)
+	router := api.NewRouterWithAuth(tokenProvider, clientFactory)
 
 	log.Printf("Servidor ouvindo em :%s\n", port)
 	if err := http.ListenAndServe(":"+port, router); err != nil {

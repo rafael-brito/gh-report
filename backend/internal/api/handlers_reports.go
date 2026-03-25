@@ -11,6 +11,7 @@ import (
 	"github.com/rafael-brito/gh-report/backend/internal/reports"
 )
 
+// Interfaces usadas principalmente para testes/mocks se você quiser no futuro.
 type FileHistoryHandlerDeps interface {
 	GetFileHistoryReport(ctx context.Context, params reports.FileHistoryParams) (*reports.FileHistoryReport, error)
 }
@@ -19,16 +20,30 @@ type ReleaseDiffHandlerDeps interface {
 	GetReleaseDiffReport(ctx context.Context, params reports.ReleaseDiffParams) (*reports.ReleaseDiffReport, error)
 }
 
+// ReportsHandler agora é "com auth": escolhe o token por request e cria o client/services.
 type ReportsHandler struct {
-	fileHistoryService reports.FileHistoryService
-	releaseDiffService reports.ReleaseDiffService
+	tokenProvider TokenProvider
+	clientFactory GitHubClientFactory
 }
 
-func NewReportsHandler(fh reports.FileHistoryService, rd reports.ReleaseDiffService) *ReportsHandler {
+func NewReportsHandler(tokenProvider TokenProvider, clientFactory GitHubClientFactory) *ReportsHandler {
 	return &ReportsHandler{
-		fileHistoryService: fh,
-		releaseDiffService: rd,
+		tokenProvider: tokenProvider,
+		clientFactory: clientFactory,
 	}
+}
+
+const dummyUserID = "dev-local"
+
+// Cria services para esta request usando o token apropriado.
+func (h *ReportsHandler) newServicesForRequest(r *http.Request) (reports.FileHistoryService, reports.ReleaseDiffService) {
+	token := h.tokenProvider.TokenForRequest(r)
+	client := h.clientFactory.ForToken(token)
+
+	fileHistorySvc := reports.NewFileHistoryService(client)
+	releaseDiffSvc := reports.NewReleaseDiffService(client)
+
+	return fileHistorySvc, releaseDiffSvc
 }
 
 func parseRepoParam(repoStr string) (reports.RepositoryRef, error) {
@@ -39,11 +54,11 @@ func parseRepoParam(repoStr string) (reports.RepositoryRef, error) {
 	return reports.RepositoryRef{Owner: parts[0], Name: parts[1]}, nil
 }
 
-const dummyUserID = "dev-local"
-
 func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := dummyUserID
+
+	fileHistorySvc, _ := h.newServicesForRequest(r)
 
 	repoStr := r.URL.Query().Get("repo")
 	file := r.URL.Query().Get("file")
@@ -80,7 +95,7 @@ func (h *ReportsHandler) HandleFileHistory(w http.ResponseWriter, r *http.Reques
 		UserID: userID,
 	}
 
-	report, err := h.fileHistoryService.GetFileHistoryReport(ctx, params)
+	report, err := fileHistorySvc.GetFileHistoryReport(ctx, params)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -109,6 +124,8 @@ func (h *ReportsHandler) HandleReleaseDiff(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	userID := dummyUserID
 
+	_, releaseDiffSvc := h.newServicesForRequest(r)
+
 	repoStr := r.URL.Query().Get("repo")
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
@@ -131,7 +148,7 @@ func (h *ReportsHandler) HandleReleaseDiff(w http.ResponseWriter, r *http.Reques
 		UserID: userID,
 	}
 
-	report, err := h.releaseDiffService.GetReleaseDiffReport(ctx, params)
+	report, err := releaseDiffSvc.GetReleaseDiffReport(ctx, params)
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "base or head not found") {
