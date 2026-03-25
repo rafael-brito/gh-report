@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '../utils/apiClient';
 
 export interface FileHistoryQueryParams {
   repo: string;
@@ -30,7 +31,7 @@ export function useFileHistoryReport(params: FileHistoryQueryParams) {
     queryKey: ['file-history', { repo, file, limit, mode }],
     queryFn: async () => {
       const url = buildFileHistoryUrl({ repo, file, limit, mode }, 'json');
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) {
         throw new Error(`Erro ao buscar relatório: ${res.status} ${res.statusText}`);
       }

@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { GitHubTokenConfig } from '../components/GitHubTokenConfig';
 
 export const HomePage: React.FC = () => {
   return (
     <div style={{ padding: '1rem' }}>
+      <GitHubTokenConfig />
       <h1>GH Report</h1>
       <p>Ferramenta de relatórios de histórico de alterações e releases.</p>
       <ul>

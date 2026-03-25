@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { GitHubTokenConfig } from '../components/GitHubTokenConfig';
+import { apiFetch, ApiError } from '../utils/apiClient';
+import { setGitHubPAT } from '../utils/githubToken';
 
 export const ReleaseDiffPage: React.FC = () => {
   const [repo, setRepo] = useState('');
@@ -7,14 +10,18 @@ export const ReleaseDiffPage: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState(false);
 
-  const canDownload = !!repo && !!from && !!to;
+  // Estado estratégico: relatório pronto para exportar
+  const [isReportReady, setIsReportReady] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAuthError(false);
     setLoading(true);
     setData(null);
+    setIsReportReady(false); // novo ciclo de geração → ainda não está pronto
 
     try {
       const params = new URLSearchParams({
@@ -24,19 +31,46 @@ export const ReleaseDiffPage: React.FC = () => {
         format: 'json',
       });
 
-      const res = await fetch(`/api/reports/release-diff?` + params.toString());
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Erro: ${res.status} ${res.statusText}`);
-      }
+      const res = await apiFetch(`/api/reports/release-diff?` + params.toString());
       const json = await res.json();
       setData(json);
+      setIsReportReady(true); // sucesso → relatório pronto para exportação
     } catch (err) {
-      setError((err as Error).message);
+      if (err instanceof ApiError && err.isAuthError) {
+        setAuthError(true);
+        setError(err.message);
+      } else {
+        setError((err as Error).message);
+      }
+      setIsReportReady(false);
     } finally {
       setLoading(false);
     }
   };
+
+  // Reset estratégico: qualquer mudança de parâmetro invalida o relatório atual
+  const handleRepoChange = (value: string) => {
+    setRepo(value);
+    setIsReportReady(false);
+    setError(null);
+    setAuthError(false);
+  };
+
+  const handleFromChange = (value: string) => {
+    setFrom(value);
+    setIsReportReady(false);
+    setError(null);
+    setAuthError(false);
+  };
+
+  const handleToChange = (value: string) => {
+    setTo(value);
+    setIsReportReady(false);
+    setError(null);
+    setAuthError(false);
+  };
+
+  const canDownload = !!repo && !!from && !!to && isReportReady;
 
   const openFormat = (format: 'markdown' | 'csv') => {
     if (!canDownload) return;
@@ -49,8 +83,16 @@ export const ReleaseDiffPage: React.FC = () => {
     window.open(`/api/reports/release-diff?` + params.toString(), '_blank');
   };
 
+  const handleClearPAT = () => {
+    setGitHubPAT(null);
+    setAuthError(false);
+    setError(null);
+    setIsReportReady(false);
+  };
+
   return (
     <div style={{ padding: '1rem' }}>
+      <GitHubTokenConfig />
       <h1>Relatório 2 - PRs entre tags</h1>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: '1rem' }}>
@@ -58,7 +100,7 @@ export const ReleaseDiffPage: React.FC = () => {
           <label>Repo (owner/repo): </label>
           <input
             value={repo}
-            onChange={e => setRepo(e.target.value)}
+            onChange={e => handleRepoChange(e.target.value)}
             placeholder="org/projeto-x"
             style={{ width: '300px' }}
           />
@@ -67,7 +109,7 @@ export const ReleaseDiffPage: React.FC = () => {
           <label>From (tag/branch/SHA): </label>
           <input
             value={from}
-            onChange={e => setFrom(e.target.value)}
+            onChange={e => handleFromChange(e.target.value)}
             placeholder="v1.2.3"
             style={{ width: '200px' }}
           />
@@ -76,7 +118,7 @@ export const ReleaseDiffPage: React.FC = () => {
           <label>To (tag/branch/SHA): </label>
           <input
             value={to}
-            onChange={e => setTo(e.target.value)}
+            onChange={e => handleToChange(e.target.value)}
             placeholder="v1.3.0"
             style={{ width: '200px' }}
           />
@@ -87,22 +129,46 @@ export const ReleaseDiffPage: React.FC = () => {
         </button>
       </form>
 
-      {canDownload && (
-        <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
-          <button type="button" onClick={() => openFormat('markdown')}>
-            Abrir em Markdown
-          </button>
-          <button type="button" onClick={() => openFormat('csv')}>
-            Baixar CSV
-          </button>
-        </div>
-      )}
+      <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+        <button
+          type="button"
+          onClick={() => openFormat('markdown')}
+          disabled={!canDownload}
+          title={
+            !canDownload ? 'Gere o relatório com sucesso para exportar em Markdown' : ''
+          }
+        >
+          Abrir em Markdown
+        </button>
+        <button
+          type="button"
+          onClick={() => openFormat('csv')}
+          disabled={!canDownload}
+          title={
+            !canDownload ? 'Gere o relatório com sucesso para exportar em CSV' : ''
+          }
+        >
+          Baixar CSV
+        </button>
+      </div>
 
       {loading && <p>Carregando...</p>}
       {error && (
-        <p style={{ color: 'red', whiteSpace: 'pre-wrap' }}>
-          {error}
-        </p>
+        <div
+          style={{
+            marginTop: '0.5rem',
+            padding: '0.5rem',
+            border: '1px solid #f99',
+            background: '#fee',
+          }}
+        >
+          <p style={{ color: '#a00', whiteSpace: 'pre-wrap' }}>{error}</p>
+          {authError && (
+            <button type="button" onClick={handleClearPAT}>
+              Limpar PAT salvo
+            </button>
+          )}
+        </div>
       )}
 
       {data && (
