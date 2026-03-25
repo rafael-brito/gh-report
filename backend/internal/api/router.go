@@ -1,24 +1,17 @@
 package api
 
-import (
-	"net/http"
+import "net/http"
 
-	"github.com/rafael-brito/gh-report/backend/internal/reports"
-)
-
-func NewRouter(
-	fileHistorySvc reports.FileHistoryService,
-	releaseDiffSvc reports.ReleaseDiffService,
+func NewRouterWithAuth(
+	tokenProvider TokenProvider,
+	clientFactory GitHubClientFactory,
 ) http.Handler {
 	mux := http.NewServeMux()
 
-	reportsHandler := NewReportsHandler(fileHistorySvc, releaseDiffSvc)
+	reportsHandler := NewReportsHandler(tokenProvider, clientFactory)
 
-	// Rotas de relatórios
 	mux.HandleFunc("/api/reports/file-history", reportsHandler.HandleFileHistory)
 	mux.HandleFunc("/api/reports/release-diff", reportsHandler.HandleReleaseDiff)
-
-	// Aqui depois você adiciona /auth/login, /auth/callback, /auth/me
 
 	return mux
 }
