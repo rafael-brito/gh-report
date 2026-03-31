@@ -93,15 +93,43 @@ export const ReleaseDiffPage: React.FC = () => {
   const prsCount = Array.isArray(prs) ? prs.length : 0;
   const hasNoResults = isReportReady && prsCount === 0;
 
-  const openFormat = (format: 'markdown' | 'csv') => {
+  const openFormat = async (format: 'markdown' | 'csv') => {
     if (!canDownload) return;
-    const params = new URLSearchParams({
-      repo,
-      from,
-      to,
-      format,
-    });
-    window.open(`/api/reports/release-diff?` + params.toString(), '_blank');
+    try {
+      const params = new URLSearchParams({ repo, from, to, format });
+      const url = `/api/reports/release-diff?` + params.toString();
+      const res = await apiFetch(url); // inclui X-GitHub-Token
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Falha ao abrir ${format} (status ${res.status})`);
+      }
+
+      const text = await res.text();
+      const mime =
+        format === 'markdown'
+          ? 'text/markdown;charset=utf-8'
+          : 'text/csv;charset=utf-8';
+
+      const blob = new Blob([text], { type: mime });
+      const downloadUrl = URL.createObjectURL(blob);
+
+      if (format === 'markdown') {
+        window.open(downloadUrl, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'release-diff.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error(`Erro ao abrir ${format}:`, err);
+      // aqui você pode reaproveitar setError/setAuthError se quiser surfacear
+    }
   };
 
   const handleClearPAT = () => {

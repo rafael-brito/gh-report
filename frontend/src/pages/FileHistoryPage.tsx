@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFileHistoryReport, getFileHistoryDownloadUrl } from '../api/reports';
-import { ApiError } from '../utils/apiClient';
+import { apiFetch, ApiError } from '../utils/apiClient';
 import { setGitHubPAT } from '../utils/githubToken';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -95,16 +95,49 @@ export const FileHistoryPage: React.FC = () => {
 
   const canDownload = isReportReady;
 
-  const handleOpenMarkdown = () => {
+  const handleOpenMarkdown = async () => {
     if (!canDownload) return;
-    const url = getFileHistoryDownloadUrl({ repo, file, limit, mode }, 'markdown');
-    window.open(url, '_blank');
+    try {
+      const url = getFileHistoryDownloadUrl({ repo, file, limit, mode }, 'markdown');
+      const res = await apiFetch(url); // inclui X-GitHub-Token se houver PAT
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Falha ao baixar markdown (status ${res.status})`);
+      }
+      const text = await res.text();
+      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+      const downloadUrl = URL.createObjectURL(blob);
+      window.open(downloadUrl, '_blank');
+    } catch (err) {
+      console.error('Erro ao abrir markdown:', err);
+      // opcional: surfacear na UI
+    }
   };
 
-  const handleOpenCSV = () => {
+  const handleOpenCSV = async () => {
     if (!canDownload) return;
-    const url = getFileHistoryDownloadUrl({ repo, file, limit, mode }, 'csv');
-    window.open(url, '_blank');
+    try {
+      const url = getFileHistoryDownloadUrl({ repo, file, limit, mode }, 'csv');
+      const res = await apiFetch(url); // inclui X-GitHub-Token se houver PAT
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Falha ao baixar CSV (status ${res.status})`);
+      }
+      const text = await res.text();
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+      const downloadUrl = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = 'file-history.csv'; // se quiser, monta nome dinâmico
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('Erro ao baixar CSV:', err);
+      // opcional: surfacear na UI
+    }
   };
 
   const handleClearPAT = () => {
